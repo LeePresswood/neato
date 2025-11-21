@@ -5,10 +5,16 @@ import cv2
 import numpy as np
 
 class NeatoBridge:
-    def __init__(self, host='127.0.0.1', port=8083):
+    def __init__(self, host='127.0.0.1', port=8084):
         self.host = host
         self.port = port
         self.sock = None
+        self.mario_x = 0
+        self.mario_y = 0
+        self.game_mode = 0
+        self.level_index = 0
+        self.end_level_timer = 0
+        self.anim_state = 0
 
     def connect(self):
         """Connects to the Bizhawk Lua server."""
@@ -46,9 +52,16 @@ class NeatoBridge:
             return None
             
         try:
-            # Parse coordinates: x, y, w, h, bx, by
+            # Parse coordinates: x, y, w, h, bx, by, mx, my, mode, level, timer, anim
             parts = list(map(int, response.split(',')))
-            x, y, w, h, bx, by = parts
+            x, y, w, h, bx, by, mx, my, mode, level, timer, anim = parts
+            
+            self.mario_x = mx
+            self.mario_y = my
+            self.game_mode = mode
+            self.level_index = level
+            self.end_level_timer = timer
+            self.anim_state = anim
             
             # Calculate capture region
             # Bizhawk x/y is the window top-left.

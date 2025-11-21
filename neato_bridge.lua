@@ -4,7 +4,7 @@
 local socket = require("socket.core")
 
 local HOST = "127.0.0.1"
-local PORT = 8083
+local PORT = 8084
 local server = nil
 local tcp_client = nil -- Renamed from client to avoid shadowing Bizhawk API
 
@@ -20,7 +20,7 @@ function init_server()
     end
     server:listen(1)
     server:settimeout(0) -- Non-blocking
-    print("Server started v5 (Port " .. PORT .. "). Waiting for connection...")
+    print("Server started v8 (Port " .. PORT .. "). Waiting for connection...")
     return true
 end
 
@@ -93,7 +93,23 @@ if init_server() then
                 if client.borderwidth then bx = client.borderwidth() end
                 if client.borderheight then by = client.borderheight() end
                 
-                send_data(string.format("%d,%d,%d,%d,%d,%d", x, y, w, h, bx, by))
+                -- Read Mario's Position (SMW specific)
+                -- 0x94 = Mario X (2 bytes)
+                -- 0x96 = Mario Y (2 bytes)
+                local mario_x = memory.read_u16_le(0x94)
+                local mario_y = memory.read_u16_le(0x96)
+                
+                -- Read Game State
+                -- 0x100 = Game Mode (u8)
+                -- 0x13BF = Level Index (u8)
+                -- 0x1493 = End Level Timer (u8) - Non-zero means level finished
+                -- 0x71   = Player Animation (u8) - 9 means dead
+                local game_mode = memory.read_u8(0x100)
+                local level_index = memory.read_u8(0x13BF)
+                local end_timer = memory.read_u8(0x1493)
+                local anim_state = memory.read_u8(0x71)
+                
+                send_data(string.format("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", x, y, w, h, bx, by, mario_x, mario_y, game_mode, level_index, end_timer, anim_state))
             elseif command == "ACT" then
                 -- TODO: Press buttons
                 send_data("ACT_OK")
