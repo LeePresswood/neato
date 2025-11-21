@@ -4,7 +4,7 @@
 local socket = require("socket.core")
 
 local HOST = "127.0.0.1"
-local PORT = 8084
+local PORT = 8086
 local server = nil
 local tcp_client = nil -- Renamed from client to avoid shadowing Bizhawk API
 
@@ -20,7 +20,7 @@ function init_server()
     end
     server:listen(1)
     server:settimeout(0) -- Non-blocking
-    print("Server started v8 (Port " .. PORT .. "). Waiting for connection...")
+    print("Server started v17 (Port " .. PORT .. "). Waiting for connection...")
     return true
 end
 
@@ -73,7 +73,10 @@ if init_server() then
         
         local command = receive_data()
         if command then
-            -- print("Received: " .. command)
+            -- Verbose logging for user visibility
+            if command ~= "GET_STATE" then -- Don't spam GET_STATE, it happens every frame
+                 print("Lua Received: " .. command)
+            end
             
             if command == "GET_STATE" then
                 -- Return window coordinates for Python to capture
@@ -110,12 +113,21 @@ if init_server() then
                 local anim_state = memory.read_u8(0x71)
                 
                 send_data(string.format("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", x, y, w, h, bx, by, mario_x, mario_y, game_mode, level_index, end_timer, anim_state))
-            elseif command == "ACT" then
-                -- TODO: Press buttons
-                send_data("ACT_OK")
+            elseif string.sub(command, 1, 4) == "ACT:" then
+                -- Parse buttons
+                -- Format: ACT:A,B,Up
+                local btn_str = string.sub(command, 5)
+                local buttons = {}
+                for btn in string.gmatch(btn_str, "([^,]+)") do
+                    buttons[btn] = true
+                end
+                
+                joypad.set(buttons, 1)
                 emu.frameadvance()
+                send_data("ACT_OK")
             elseif command == "RESET" then
-                emu.softreset()
+                savestate.loadslot(1)  -- Load slot 1 (1-indexed for slots)
+                emu.frameadvance()  -- Let the save state fully apply
                 send_data("RESET_OK")
             else
                 send_data("UNKNOWN_CMD")

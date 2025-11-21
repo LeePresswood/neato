@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 class NeatoBridge:
-    def __init__(self, host='127.0.0.1', port=8084):
+    def __init__(self, host='127.0.0.1', port=8086):
         self.host = host
         self.port = port
         self.sock = None
@@ -56,6 +56,7 @@ class NeatoBridge:
             parts = list(map(int, response.split(',')))
             x, y, w, h, bx, by, mx, my, mode, level, timer, anim = parts
             
+            # Update game state
             self.mario_x = mx
             self.mario_y = my
             self.game_mode = mode
@@ -64,23 +65,20 @@ class NeatoBridge:
             self.anim_state = anim
             
             # Calculate capture region
-            # Bizhawk x/y is the window top-left.
-            # We need to offset by the title bar and borders to get the game area.
             # These values might need tuning based on the user's OS/theme.
-            TITLE_BAR_HEIGHT = 25 # Adjusted based on user feedback
-            MENU_BAR_HEIGHT = 20  # Bizhawk menu bar
-            BORDER_WIDTH = 8      # Standard resize border
+            TITLE_BAR_HEIGHT = 25
+            MENU_BAR_HEIGHT = 20
+            BORDER_WIDTH = 8
             
             # If the API returned valid border info, use it, otherwise use defaults
-            # (The Lua script currently returns 0 for bx/by if the function is missing)
             offset_y = by if by > 0 else (TITLE_BAR_HEIGHT + MENU_BAR_HEIGHT + BORDER_WIDTH)
             offset_x = bx if bx > 0 else BORDER_WIDTH
             
             monitor = {
                 "top": y + offset_y, 
                 "left": x + offset_x, 
-                "width": w, # Capture full reported content width
-                "height": h # Capture full reported content height
+                "width": w,
+                "height": h
             }
             
             with mss.mss() as sct:
@@ -95,6 +93,7 @@ class NeatoBridge:
                 img_small = cv2.resize(img, (128, 112))
                 
                 return img_small
+                
                 
         except Exception as e:
             print(f"Error capturing screen: {e}")
