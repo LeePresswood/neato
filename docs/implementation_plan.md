@@ -177,6 +177,13 @@ Enable Mario to perform complex movement actions: **Running** (holding Y) and **
 - **Velocity Bonus**: Reward moving *fast* (requires running).
 - **Jump Penalty**: Slight penalty for jumping to prevent "bunny hopping" unless necessary? (Maybe wait on this).
 
+### 4. Training Checkpoints
+**Problem**: Training takes a long time and can't be paused/resumed.
+**Solution**: Implement `neat.Checkpointer`.
+- Save population state every 1-5 generations.
+- On startup, check for existing checkpoints and restore if found.
+- Allows stopping for the night and resuming exactly where we left off.
+
 ## Verification Plan
 
 ### Automated Tests
