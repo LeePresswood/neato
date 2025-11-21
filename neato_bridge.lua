@@ -75,7 +75,7 @@ if init_server() then
         if command then
             -- Verbose logging for user visibility
             if command ~= "GET_STATE" then -- Don't spam GET_STATE, it happens every frame
-                 print("Lua Received: " .. command)
+                 -- print("Lua Received: " .. command)
             end
             
             if command == "GET_STATE" then
