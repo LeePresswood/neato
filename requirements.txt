@@ -1,3 +1,6 @@
 neat-python
 numpy
 matplotlib
+mss
+opencv-python
+Pillow

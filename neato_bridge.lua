@@ -4,13 +4,14 @@
 local socket = require("socket.core")
 
 local HOST = "127.0.0.1"
-local PORT = 8080
+local PORT = 8083
 local server = nil
-local client = nil
+local tcp_client = nil -- Renamed from client to avoid shadowing Bizhawk API
 
 -- Initialize Server
 function init_server()
     print("Attempting to start server on " .. HOST .. ":" .. PORT)
+    
     server = socket.tcp()
     local res, err = server:bind(HOST, PORT)
     if not res then
@@ -19,7 +20,7 @@ function init_server()
     end
     server:listen(1)
     server:settimeout(0) -- Non-blocking
-    print("Server started. Waiting for connection...")
+    print("Server started v5 (Port " .. PORT .. "). Waiting for connection...")
     return true
 end
 
@@ -28,20 +29,20 @@ function accept_client()
     if server == nil then return end
     local new_client, err = server:accept()
     if new_client then
-        client = new_client
-        client:settimeout(0)
+        tcp_client = new_client
+        tcp_client:settimeout(0)
         print("Client connected!")
     end
 end
 
 -- Receive Data
 function receive_data()
-    if client == nil then return nil end
-    local line, err = client:receive("*l") -- Read line
+    if tcp_client == nil then return nil end
+    local line, err = tcp_client:receive("*l") -- Read line
     if err then
         if err ~= "timeout" then
             print("Client disconnected: " .. err)
-            client = nil
+            tcp_client = nil
         end
         return nil
     end
@@ -50,13 +51,20 @@ end
 
 -- Send Data
 function send_data(data)
-    if client == nil then return end
-    local res, err = client:send(data .. "\n")
+    if tcp_client == nil then return end
+    local res, err = tcp_client:send(data .. "\n")
     if not res then
         print("Failed to send: " .. err)
-        client = nil
+        tcp_client = nil
     end
 end
+
+-- Cleanup on exit
+event.onexit(function()
+    print("Shutting down server...")
+    if tcp_client then tcp_client:close() end
+    if server then server:close() end
+end)
 
 -- Main Loop
 if init_server() then
@@ -68,9 +76,24 @@ if init_server() then
             -- print("Received: " .. command)
             
             if command == "GET_STATE" then
-                -- TODO: Capture screen or RAM
-                -- For now, just send a dummy response
-                send_data("STATE_OK")
+                -- Return window coordinates for Python to capture
+                local x = 0
+                local y = 0
+                if client.xpos then x = client.xpos() end
+                if client.ypos then y = client.ypos() end
+                
+                local w = 256
+                local h = 224
+                if client.screenwidth then w = client.screenwidth() end
+                if client.screenheight then h = client.screenheight() end
+                
+                -- Also get border info to help crop
+                local bx = 0
+                local by = 0
+                if client.borderwidth then bx = client.borderwidth() end
+                if client.borderheight then by = client.borderheight() end
+                
+                send_data(string.format("%d,%d,%d,%d,%d,%d", x, y, w, h, bx, by))
             elseif command == "ACT" then
                 -- TODO: Press buttons
                 send_data("ACT_OK")

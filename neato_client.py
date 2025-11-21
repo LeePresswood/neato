@@ -1,8 +1,11 @@
 import socket
 import time
+import mss
+import cv2
+import numpy as np
 
 class NeatoBridge:
-    def __init__(self, host='127.0.0.1', port=8080):
+    def __init__(self, host='127.0.0.1', port=8083):
         self.host = host
         self.port = port
         self.sock = None
@@ -25,7 +28,7 @@ class NeatoBridge:
             return None
 
         try:
-            self.sock.sendall((command + "\n").encode('utf-8'))
+            self.sock.sendall((command + "\r\n").encode('utf-8'))
             response = self.sock.recv(4096).decode('utf-8').strip()
             return response
         except Exception as e:
@@ -35,7 +38,54 @@ class NeatoBridge:
             return None
 
     def get_state(self):
-        return self.send_command("GET_STATE")
+        """
+        Returns the current game screen as a numpy array.
+        """
+        response = self.send_command("GET_STATE")
+        if not response:
+            return None
+            
+        try:
+            # Parse coordinates: x, y, w, h, bx, by
+            parts = list(map(int, response.split(',')))
+            x, y, w, h, bx, by = parts
+            
+            # Calculate capture region
+            # Bizhawk x/y is the window top-left.
+            # We need to offset by the title bar and borders to get the game area.
+            # These values might need tuning based on the user's OS/theme.
+            TITLE_BAR_HEIGHT = 25 # Adjusted based on user feedback
+            MENU_BAR_HEIGHT = 20  # Bizhawk menu bar
+            BORDER_WIDTH = 8      # Standard resize border
+            
+            # If the API returned valid border info, use it, otherwise use defaults
+            # (The Lua script currently returns 0 for bx/by if the function is missing)
+            offset_y = by if by > 0 else (TITLE_BAR_HEIGHT + MENU_BAR_HEIGHT + BORDER_WIDTH)
+            offset_x = bx if bx > 0 else BORDER_WIDTH
+            
+            monitor = {
+                "top": y + offset_y, 
+                "left": x + offset_x, 
+                "width": w, # Capture full reported content width
+                "height": h # Capture full reported content height
+            }
+            
+            with mss.mss() as sct:
+                # Capture the screen
+                img = np.array(sct.grab(monitor))
+                
+                # Drop alpha channel (BGRA -> BGR)
+                img = img[:, :, :3]
+                
+                # Resize to a standard input size (e.g., 128x112 - half SNES)
+                # This keeps the neural network input manageable
+                img_small = cv2.resize(img, (128, 112))
+                
+                return img_small
+                
+        except Exception as e:
+            print(f"Error capturing screen: {e}")
+            return None
 
     def act(self, action):
         return self.send_command("ACT")
