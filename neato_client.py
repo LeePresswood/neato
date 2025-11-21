@@ -99,8 +99,20 @@ class NeatoBridge:
             print(f"Error capturing screen: {e}")
             return None
 
-    def act(self, action):
-        return self.send_command("ACT")
+    def act(self, buttons):
+        """
+        Sends button states to the Lua script.
+        buttons: dict of 'BUTTON_NAME': boolean
+        """
+        # Format: "ACT:A,B,Up" (comma separated list of pressed buttons)
+        pressed = [k for k, v in buttons.items() if v]
+        if pressed:
+            cmd = "ACT:" + ",".join(pressed)
+        else:
+            cmd = "ACT:"  # No buttons pressed
+        
+        response = self.send_command(cmd)
+        return response == "ACT_OK"
 
     def reset(self):
         return self.send_command("RESET")

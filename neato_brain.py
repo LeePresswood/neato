@@ -23,7 +23,9 @@ class Substrate:
         # We place them in a geometric arrangement to give the AI spatial hints
         # e.g., Left is to the left of Right
         self.buttons = ['B', 'Y', 'SELECT', 'START', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'X', 'L', 'R']
-        self.active_buttons = ['B', 'Y', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'X']
+        # Simplified active buttons for initial training
+        # Using Title Case for Bizhawk compatibility
+        self.active_buttons = ['B', 'Left', 'Right', 'A']
         
         # Manually define positions for active buttons in a circle or line
         # Let's put them in a line at z=1 (if we had 3D) or just separate them
@@ -124,6 +126,7 @@ class NeatoBrain:
         current_frame = 0
         max_distance = initial_x  # Start from actual initial position
         stagnation_counter = 0
+        right_press_count = 0  # Track how many frames RIGHT was pressed
         
         while current_frame < max_frames:
             # 1. Get Input
@@ -140,22 +143,39 @@ class NeatoBrain:
             # Convert to grayscale for simplicity first? Or keep RGB?
             # Let's do Grayscale to save weights (14k vs 42k)
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            inputs = img_gray.flatten() / 255.0 # Normalize 0-1
+            inputs = (img_gray.flatten() / 127.5) - 1.0  # Normalize to -1 to 1
             
             # 2. Activate Network (Matrix Mult)
             # (1, N) dot (N, Outputs) = (1, Outputs)
             outputs = np.dot(inputs, weights)
             
-            # 3. Decide Buttons (Threshold or Sigmoid)
-            # Let's apply sigmoid
+            # 3. Decide Buttons (Sigmoid activation)
+            # Sigmoid ranges from 0 to 1, threshold at 0.5
             outputs = 1 / (1 + np.exp(-outputs))
             
             buttons = {}
             for i, btn_name in enumerate(self.substrate.active_buttons):
-                buttons[btn_name] = outputs[i] > 0.5
+                buttons[btn_name] = outputs[i] > 0.5  # Press if > 0.5
+                
+            # Prevent conflicting directional inputs
+            
+            # Prevent conflicting directional inputs
+            # Left+Right cancel each other out in SNES
+            if buttons.get('Left') and buttons.get('Right'):
+                # Keep the one with stronger output
+                left_idx = self.substrate.active_buttons.index('Left')
+                right_idx = self.substrate.active_buttons.index('Right')
+                if abs(outputs[left_idx]) > abs(outputs[right_idx]):
+                    buttons['Right'] = False
+                else:
+                    buttons['Left'] = False
                 
             # 4. Send Action
             self.bridge.act(buttons)
+            
+            # Track Right presses for exploration bonus
+            if buttons.get('Right', False):
+                right_press_count += 1
             
             # 5. Check Fitness
             # Simple fitness: Max X position
@@ -171,8 +191,13 @@ class NeatoBrain:
                 break
                 
             current_frame += 1
+        
+        # Calculate fitness with exploration bonus
+        # Add bonus for pressing Right to encourage exploration
+        # Increased to 1.0 to make it significant
+        right_press_bonus = 1.0 * right_press_count
             
-        return max_distance
+        return max_distance + right_press_bonus
 
 def run(config_path):
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,

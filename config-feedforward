@@ -7,7 +7,7 @@ no_fitness_termination = False
 
 [DefaultGenome]
 # Node activation options
-activation_default      = sigmoid
+activation_default      = tanh
 activation_mutate_rate  = 0.1
 activation_options      = sigmoid tanh sin gauss hat identity
 feed_forward            = True
